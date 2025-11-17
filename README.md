@@ -2,7 +2,7 @@
 
 *Your experiments deserve a home.* 🏠
 
-> For everyone who constantly creates new projects for little experiments, a one-file Ruby script to quickly manage and navigate to keep them somewhat organized
+> For everyone who constantly creates new projects for little experiments, a tiny one-file CLI to quickly manage and navigate them so they stay somewhat organized.
 
 Ever find yourself with 50 directories named `test`, `test2`, `new-test`, `actually-working-test`, scattered across your filesystem? Or worse, just coding in `/tmp` and losing everything?
 
@@ -18,19 +18,21 @@ Instantly navigate through all your experiment directories with:
 - **Auto-dating** - creates directories like `2025-08-17-redis-experiment`
 - **Zero config** - just one Ruby file, no dependencies
 
-## Quick Start
+## Quick Start (Node.js, this repo)
 
 ```bash
-curl -sL https://raw.githubusercontent.com/tobi/try/refs/heads/main/try.rb > ~/.local/try.rb
+# Clone this fork
+git clone https://github.com/taoalpha/try.git ~/src/try-node
+cd ~/src/try-node
 
-# Make "try" executable so it can be run directly
-chmod +x ~/.local/try.rb
+# Make the script executable
+chmod +x try.js
 
 # Add to your shell (bash/zsh)
-echo 'eval "$(ruby ~/.local/try.rb init ~/src/tries)"' >> ~/.zshrc
+echo 'eval "$(/usr/bin/env node ~/src/try-node/try.js init ~/src/tries)"' >> ~/.zshrc
 
 # for fish shell users
-echo 'eval (~/.local/try.rb init ~/src/tries | string collect)' >> ~/.config/fish/config.fish
+echo 'eval (/usr/bin/env node ~/src/try-node/try.js init ~/src/tries | string collect)' >> ~/.config/fish/config.fish
 ```
 
 ## The Problem
@@ -78,21 +80,23 @@ Not just substring matching - it's smart:
 
 ### Shell Integration
 
+Once `try.js` is on disk, `try init` installs a small shell wrapper:
+
 - Bash/Zsh:
 
   ```bash
   # default is ~/src/tries
-  eval "$(~/.local/try.rb init)"
+  eval "$(/usr/bin/env node ~/src/try-node/try.js init)"
   # or pick a path
-  eval "$(~/.local/try.rb init ~/src/tries)"
+  eval "$(/usr/bin/env node ~/src/try-node/try.js init ~/src/tries)"
   ```
 
 - Fish:
 
   ```fish
-  eval (~/.local/try.rb init | string collect)
+  eval (/usr/bin/env node ~/src/try-node/try.js init | string collect)
   # or pick a path
-  eval (~/.local/try.rb init ~/src/tries | string collect)
+  eval (/usr/bin/env node ~/src/try-node/try.js init ~/src/tries | string collect)
   ```
 
 Notes:
@@ -123,16 +127,16 @@ Notes on worktrees (`try .` / `try worktree dir`):
 
 ```bash
 # Clone with auto-generated directory name
-try clone https://github.com/tobi/try.git
-# Creates: 2025-08-27-tobi-try
+try clone https://github.com/taoalpha/try.git
+# Creates: 2025-08-27-taoalpha-try
 
 # Clone with custom name
-try clone https://github.com/tobi/try.git my-fork
+try clone https://github.com/taoalpha/try.git my-fork
 # Creates: my-fork
 
 # Shorthand syntax (no need to type 'clone')
-try https://github.com/tobi/try.git
-# Creates: 2025-08-27-tobi-try
+try https://github.com/taoalpha/try.git
+# Creates: 2025-08-27-taoalpha-try
 ```
 
 Supported git URI formats:
@@ -162,65 +166,11 @@ export TRY_PATH=~/code/sketches
 
 Default: `~/src/tries`
 
-## Nix
+## Why Node.js?
 
-### Quick start
-
-```bash
-nix run github:tobi/try
-nix run github:tobi/try -- --help
-nix run github:tobi/try init ~/my-tries
-```
-
-### Home Manager
-
-```nix
-{
-  inputs.try.url = "github:tobi/try";
-  
-  imports = [ inputs.try.homeManagerModules.default ];
-  
-  programs.try = {
-    enable = true;
-    path = "~/experiments";  # optional, defaults to ~/src/tries
-  };
-}
-```
-
-## Homebrew
-
-### Quick start
-
-```bash
-brew tap tobi/try
-brew install try
-```
-
-After installation, add to your shell:
-
-- Bash/Zsh:
-
-  ```bash
-  # default is ~/src/tries
-  eval "$(try init)"
-  # or pick a path
-  eval "$(try init ~/src/tries)"
-  ```
-
-- Fish:
-
-  ```fish
-  eval "(try init | string collect)"
-  # or pick a path
-  eval "(try init ~/src/tries | string collect)"
-  ```
-
-## Why Ruby?
-
-- One file, no dependencies
-- Works on any system with Ruby (macOS has it built-in)
-- Fast enough for thousands of directories
-- Easy to hack on
+- One file, no external dependencies beyond a recent Node.js.
+- Easy to run and hack locally (`node try.js`).
+- Still fast enough for thousands of directories.
 
 ## The Philosophy
 

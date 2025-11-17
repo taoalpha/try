@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `try.rb`: Single-file Ruby CLI and TUI (no gems).
+- `try.js`: Single-file Node.js CLI and TUI (no external deps beyond Node).
 - `flake.nix`/`flake.lock`: Nix packaging and Home Manager module.
 - `README.md`: Usage, installation, and philosophy.
 - Tries live outside this repo (default `~/src/tries`, configurable via `TRY_PATH`).
@@ -25,23 +25,23 @@
 ## Build, Test, and Development Commands
 - `nix run`: Run the packaged CLI (e.g., `nix run . -- --help`).
 - `nix build`: Build the binary derivation; output at `./result/bin/try`.
-- `./try.rb init ~/src/tries`: Emit shell function for your shell config.
-- `./try.rb cd`: Launch interactive selector; prints `cd` script to stdout.
-- `./try.rb clone <git-uri> [name]`: Clone into date-prefixed directory.
+- `node try.js init ~/src/tries`: Emit shell function for your shell config.
+- `node try.js cd`: Launch interactive selector; prints `cd` script to stdout.
+- `node try.js clone <git-uri> [name]`: Clone into date-prefixed directory.
 
 ## Coding Style & Naming Conventions
-- Ruby, 2-space indent, standard library only; keep it single-file unless necessary.
-- Prefer small, pure functions; no global state beyond `ENV` reads.
-- UI tokens live in `UI::TOKEN_MAP`; add tokens with clear names. UI printing runs through `UI.expand_tokens`.
-- Shell emission goes through `UI.emit_tasks_script` (don’t handcraft `$dir` scripts).
+- JavaScript (Node.js), 2-space indent; keep it single-file unless necessary.
+- Prefer small, pure functions; no global state beyond `process.env` reads.
+- UI tokens live in `UI.TOKEN_MAP`; add tokens with clear names. UI printing runs through `UI.expandTokens`.
+- Shell emission goes through `TaskScriptEmitter.emitTasksScript` (don’t handcraft `$dir` scripts).
 - Directory names: `YYYY-MM-DD-name` (auto-generated); keep lowercase/kebab-case.
 - Nix: keep `packages.default` minimal; avoid extra build inputs.
 
 ## Testing Guidelines
 - No framework is configured; use manual flows:
-  - `TRY_PATH=$(mktemp -d) ./try.rb cd` then create/select directories.
+  - `TRY_PATH=$(mktemp -d) node try.js cd` then create/select directories.
   - Validate delete confirmation and scoring by changing `mtime`/`ctime`.
-  - Test clone paths: `./try.rb clone https://github.com/user/repo.git`.
+  - Test clone paths: `node try.js clone https://github.com/user/repo.git`.
 - If adding logic, consider lightweight unit tests or scriptable checks; keep them optional and self-contained.
 - Prefer testing the printed shell via regex matches. When adding tokens, add simple tests to validate token expansion and non-TTY flush behavior.
 

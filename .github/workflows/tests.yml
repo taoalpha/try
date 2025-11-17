@@ -7,16 +7,16 @@ on:
     branches: [ "**" ]
 
 jobs:
-  ruby-tests:
+  node-tests:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          ruby-version: '3.3'
+          node-version: '20'
 
-      - name: Run tests
-        run: rake -f tests/Rakefile
+      - name: Run Node tests
+        run: node tests/test_cli.js
