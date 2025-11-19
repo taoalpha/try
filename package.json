@@ -1,0 +1,28 @@
+{
+  "name": "try",
+  "version": "1.0.0",
+  "description": "*Your experiments deserve a home.* 🏠",
+  "main": "try.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taoalpha/try.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/taoalpha/try/issues"
+  },
+  "homepage": "https://github.com/taoalpha/try#readme",
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  }
+}
