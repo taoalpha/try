@@ -19,6 +19,12 @@ import { fileURLToPath } from "url";
 // Non-zero so it doesn't collide with "plain print" success (0), but reserved for "eval this".
 const EXIT_EVAL = 10;
 
+async function exit(code: number) {
+  // move back to main buffer
+  process.stderr.write('\x1b[?1049l');
+  process.exit(code);
+}
+
 class Debug {
   static enabled = false;
 
@@ -128,13 +134,13 @@ class UI {
     io.write("\x1b[2J\x1b[H");
   }
 
-  flush(io: NodeJS.WritableStream = process.stderr): void {
+  flush(io: NodeJS.WriteStream = process.stderr): void {
     if (this.currentLine.length > 0) {
       this.buffer.push(this.currentLine);
       this.currentLine = "";
     }
 
-    if (!(io as any).isTTY) {
+    if (!io.isTTY) {
       const plain = this.buffer.join("\n").replace(/\{.*?\}/g, "");
       io.write(plain);
       if (!plain.endsWith("\n")) io.write("\n");
@@ -145,13 +151,14 @@ class UI {
       return;
     }
 
-    io.write("\x1b[H"); // home
+    io.write(UI.TOKEN_MAP["{home}"]);
     const maxLines = Math.max(this.buffer.length, this.lastBuffer.length);
     const reset = UI.TOKEN_MAP["{reset}"];
     for (let i = 0; i < maxLines; i++) {
       const current = this.buffer[i] || "";
       const last = this.lastBuffer[i] || "";
       if (current !== last) {
+        // move cursor to line i and clear the content for rewrite
         io.write(`\x1b[${i + 1};1H\x1b[2K`);
         if (current.length > 0) {
           io.write(UI.expandTokens(current));
@@ -159,6 +166,7 @@ class UI {
         }
       }
     }
+    // cache current content for next paint
     this.lastBuffer = this.buffer.slice();
     this.buffer = [];
     this.currentLine = "";
@@ -226,7 +234,7 @@ interface SelectionResult {
 
 class TrySelector {
   static TRY_PATH =
-    process.env.TRY_PATH || path.resolve(os.homedir(), "src/tries");
+    process.env.TRY_PATH || path.resolve(os.homedir(), "workspaces/tries");
 
   searchTerm: string;
   cursorPos: number;
@@ -457,8 +465,9 @@ class TrySelector {
         // Backspace key
         case "\x7F":
         case "\b": {
-          if (this.inputBuffer.length > 0)
+          if (this.inputBuffer.length > 0) {
             this.inputBuffer = this.inputBuffer.slice(0, -1);
+          }
           this.cursorPos = 0;
           break;
         }
@@ -467,15 +476,7 @@ class TrySelector {
           if (this.cursorPos < tries.length) {
             await this.handleDelete(tries[this.cursorPos]);
           }
-          // Always continue the loop and re-render after delete.
-          // Deletion never triggers an immediate exit; exit only happens
-          // on Enter (selection), ESC, or Ctrl-C.
-          Debug.log(
-            this,
-            "after_delete",
-            `cursor=${this.cursorPos}`,
-            `selected=${JSON.stringify(this.selected)}`
-          );
+          if (this.selected) return this.selected;
           break;
         }
         // Escape key
@@ -678,7 +679,7 @@ class TrySelector {
       return;
     }
     this.ui.cls();
-    this.ui.puts("{h2}Enter new try name");
+    this.ui.puts("{h2}Enter the name");
     this.ui.puts();
     this.ui.puts(`> {dim_text}${datePrefix}-{reset}`);
     this.ui.flush();
@@ -767,6 +768,13 @@ class TrySelector {
             `rel=${rel}`,
             `isInside=${String(isInside)}`
           );
+          if (isInside) {
+            this.selected = {
+              type: "restart",
+              // cd back to base path
+              path: this.basePath,
+            };
+          }
         } catch (e) {}
       } catch (e: any) {
         this.deleteStatus = `Error: ${e.message}`;
@@ -829,11 +837,11 @@ Lightweight experiments for people with ADHD
 this tool is not meant to be used directly,
 but added to your ~/.zshrc or ~/.bashrc:
 
-  {highlight}eval "$(#$0 init ~/src/tries)"{reset}
+  {highlight}eval "$(#$0 init ~/workspaces/tries)"{reset}
 
 for fish shell, add to ~/.config/fish/config.fish:
 
-  {highlight}eval (#$0 init ~/src/tries | string collect){reset}
+  {highlight}eval (#$0 init ~/workspaces/tries | string collect){reset}
 
 {h2}Usage:{text}
 
@@ -863,7 +871,7 @@ for fish shell, add to ~/.config/fish/config.fish:
   # From given repo path, creates: 2025-08-27-my-branch and adds detached worktree
 
 {h2}Defaults:{reset}
-  Default path: {dim_text}~/src/tries{reset} (override with --path on commands)
+  Default path: {dim_text}~/workspaces/tries{reset} (override with --path on commands)
   Current default: {dim_text}${TrySelector.TRY_PATH}{reset}
 `;
     const out = process.stdout.isTTY
@@ -1182,13 +1190,16 @@ class TaskScriptEmitter {
         case "cd":
           parts.push(`cd ${q}`);
           break;
+        case "restart":
+          parts.push(`try`);
+          break;
       }
     }
     if (parts.length > 0) {
       TaskScriptEmitter.emitScript(parts);
-      return process.exit(EXIT_EVAL);
+      return exit(EXIT_EVAL);
     } else {
-      process.exit(0);
+      exit(0);
     }
   }
 }
@@ -1206,12 +1217,14 @@ class Commands {
     if (!gitUri) {
       console.error("Error: git URI required for clone command");
       console.error("Usage: try clone <git-uri> [name]");
-      process.exit(1);
+      exit(1);
+      return [];
     }
     const dirName = GitUtils.generateCloneDirectoryName(gitUri, customName);
     if (!dirName) {
       console.error(`Error: Unable to parse git URI: ${gitUri}`);
-      process.exit(1);
+      exit(1);
+      return [];
     }
     const fullPath = path.join(this.triesPath, dirName);
     return [
@@ -1238,7 +1251,7 @@ class Commands {
       ? InitScript.fish(scriptPath, pathArg)
       : InitScript.bashOrZsh(scriptPath, pathArg);
     process.stdout.write(script);
-    process.exit(0);
+    exit(0);
   }
 
   worktree(args: string[]) {
@@ -1305,7 +1318,7 @@ class Commands {
     }
   }
 
-  async cd(args: string[], andType: string | null, andExit: boolean, andKeys: string[] | null, andConfirm: string | null): Promise<Task[] | null> {
+  async cd(args: string[], andType: string | null, andExit: boolean, andKeys: string[] | null, andConfirm: string | null): Promise<Task[] | null | void> {
     Debug.log(
       this,
       "cd_command",
@@ -1351,7 +1364,8 @@ class Commands {
       const dirName = GitUtils.generateCloneDirectoryName(gitUri, customName);
       if (!dirName) {
         console.error(`Error: Unable to parse git URI: ${gitUri}`);
-        process.exit(1);
+        exit(1);
+        return
       }
       const fullPath = path.join(this.triesPath, dirName);
       return [
@@ -1377,7 +1391,7 @@ class Commands {
     if (andExit) {
       return selector.run().then(() => {
         Debug.log(this, "exit_from_selector", "andExit=true");
-        process.exit(0);
+        exit(0);
       });
     }
     return selector.run().then((result) => {
@@ -1389,6 +1403,7 @@ class Commands {
       const tasks: Task[] = [{ type: "target", path: result.path! }];
       if (result.type === "mkdir") tasks.push({ type: "mkdir" });
       tasks.push({ type: "touch" }, { type: "cd" });
+      if (result.type === "restart") tasks.push({ type: "restart" });
       return tasks;
     });
   }
@@ -1408,7 +1423,7 @@ class TryApp {
   async run() {
     if (this.argv.includes("--help") || this.argv.includes("-h")) {
       HelpPrinter.printGlobalHelp();
-      process.exit(0);
+      exit(0);
     }
     const parsed = this.parsed;
     Debug.log(this, "app_start", JSON.stringify(this.argv));
@@ -1423,7 +1438,7 @@ class TryApp {
     const commands = new Commands(triesPath, parsed.debug);
     if (parsed.command == null) {
       HelpPrinter.printGlobalHelp();
-      process.exit(2);
+      exit(2);
     }
     switch (parsed.command) {
       case "clone": {
@@ -1454,13 +1469,13 @@ class TryApp {
       }
       case "debug": {
         Debug.callout();
-        process.exit(0);
+        exit(0);
         break;
       }
       default: {
         console.error(`Unknown command: ${parsed.command}`);
         HelpPrinter.printGlobalHelp();
-        process.exit(2);
+        exit(2);
       }
     }
   }
@@ -1468,6 +1483,8 @@ class TryApp {
 
 async function main() {
   const app = new TryApp(process.argv);
+  // alternate screen buffer
+  process.stderr.write('\x1b[?1049h');
   await app.run();
 }
 
@@ -1479,6 +1496,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   } catch {}
   main().catch((err) => {
     console.error(err && err.stack ? err.stack : String(err));
-    process.exit(1);
+    exit(1);
   });
 }
