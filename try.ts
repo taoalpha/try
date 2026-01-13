@@ -19,11 +19,15 @@ import { fileURLToPath } from "url";
 // Non-zero so it doesn't collide with "plain print" success (0), but reserved for "eval this".
 const EXIT_EVAL = 10;
 
+function safeStderrWrite(data: string) {
+  if (!process.stderr.isTTY) return;
+  try {
+    process.stderr.write(data);
+  } catch {}
+}
+
 async function exit(code: number) {
-  // move back to main buffer (only if stderr is a TTY)
-  if (process.stderr.isTTY) {
-    process.stderr.write('\x1b[?1049l');
-  }
+  safeStderrWrite('\x1b[?1049l');
   process.exit(code);
 }
 
@@ -294,7 +298,7 @@ class TrySelector {
       } else {
         process.stdin.setRawMode(true);
         process.stdin.resume();
-        if (process.stderr.isTTY) process.stderr.write("\x1b[?25l");
+        safeStderrWrite("\x1b[?25l");
       }
       return await this.mainLoop();
     } finally {
@@ -305,14 +309,14 @@ class TrySelector {
   setupTerminal() {
     if (!this.testNoCls) {
       this.ui.cls();
-      if (process.stderr.isTTY) process.stderr.write("\x1b[2J\x1b[H\x1b[?25l");
+      safeStderrWrite("\x1b[2J\x1b[H\x1b[?25l");
     }
   }
 
   restoreTerminal() {
     try {
-      if (!this.testNoCls && process.stderr.isTTY) {
-        process.stderr.write("\x1b[2J\x1b[H\x1b[?25h");
+      if (!this.testNoCls) {
+        safeStderrWrite("\x1b[2J\x1b[H\x1b[?25h");
       }
     } finally {
       try {
@@ -685,7 +689,7 @@ class TrySelector {
     this.ui.puts();
     this.ui.puts(`> {dim_text}${datePrefix}-{reset}`);
     this.ui.flush();
-    if (process.stderr.isTTY) process.stderr.write("\x1b[?25h");
+    safeStderrWrite("\x1b[?25h");
     const entry = await this.readLineOnce();
     if (!entry) {
       this.selected = { type: "cancel", path: null };
@@ -728,7 +732,7 @@ class TrySelector {
     this.ui.puts(`  {dim_text}files: ${files} files{reset}`);
     this.ui.puts(`  {dim_text}size: ${size}{reset}`);
     this.ui.flush();
-    if (process.stderr.isTTY) process.stderr.write("\x1b[?25h");
+    safeStderrWrite("\x1b[?25h");
     let confirmation = "";
     if (this.testConfirm != null || !process.stderr.isTTY) {
       confirmation = String(
@@ -783,7 +787,7 @@ class TrySelector {
     } else {
       this.deleteStatus = "Delete cancelled";
     }
-    if (process.stderr.isTTY) process.stderr.write("\x1b[?25l");
+    safeStderrWrite("\x1b[?25l");
   }
 
   async readLineOnce(prompt: string = ""): Promise<string> {
@@ -1484,7 +1488,7 @@ class TryApp {
 
 async function main() {
   const app = new TryApp(process.argv);
-  if (process.stderr.isTTY) process.stderr.write('\x1b[?1049h');
+  safeStderrWrite('\x1b[?1049h');
   await app.run();
 }
 
