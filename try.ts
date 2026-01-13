@@ -20,8 +20,10 @@ import { fileURLToPath } from "url";
 const EXIT_EVAL = 10;
 
 async function exit(code: number) {
-  // move back to main buffer
-  process.stderr.write('\x1b[?1049l');
+  // move back to main buffer (only if stderr is a TTY)
+  if (process.stderr.isTTY) {
+    process.stderr.write('\x1b[?1049l');
+  }
   process.exit(code);
 }
 
@@ -292,7 +294,7 @@ class TrySelector {
       } else {
         process.stdin.setRawMode(true);
         process.stdin.resume();
-        process.stderr.write("\x1b[?25l"); // hide cursor
+        if (process.stderr.isTTY) process.stderr.write("\x1b[?25l");
       }
       return await this.mainLoop();
     } finally {
@@ -303,13 +305,13 @@ class TrySelector {
   setupTerminal() {
     if (!this.testNoCls) {
       this.ui.cls();
-      process.stderr.write("\x1b[2J\x1b[H\x1b[?25l");
+      if (process.stderr.isTTY) process.stderr.write("\x1b[2J\x1b[H\x1b[?25l");
     }
   }
 
   restoreTerminal() {
     try {
-      if (!this.testNoCls) {
+      if (!this.testNoCls && process.stderr.isTTY) {
         process.stderr.write("\x1b[2J\x1b[H\x1b[?25h");
       }
     } finally {
@@ -683,7 +685,7 @@ class TrySelector {
     this.ui.puts();
     this.ui.puts(`> {dim_text}${datePrefix}-{reset}`);
     this.ui.flush();
-    process.stderr.write("\x1b[?25h");
+    if (process.stderr.isTTY) process.stderr.write("\x1b[?25h");
     const entry = await this.readLineOnce();
     if (!entry) {
       this.selected = { type: "cancel", path: null };
@@ -725,9 +727,8 @@ class TrySelector {
     this.ui.puts(`  {dim_text}in ${tryDir.path}{reset}`);
     this.ui.puts(`  {dim_text}files: ${files} files{reset}`);
     this.ui.puts(`  {dim_text}size: ${size}{reset}`);
-    // Let readline render the prompt to avoid clearing our printed line
     this.ui.flush();
-    process.stderr.write("\x1b[?25h");
+    if (process.stderr.isTTY) process.stderr.write("\x1b[?25h");
     let confirmation = "";
     if (this.testConfirm != null || !process.stderr.isTTY) {
       confirmation = String(
@@ -782,7 +783,7 @@ class TrySelector {
     } else {
       this.deleteStatus = "Delete cancelled";
     }
-    process.stderr.write("\x1b[?25l");
+    if (process.stderr.isTTY) process.stderr.write("\x1b[?25l");
   }
 
   async readLineOnce(prompt: string = ""): Promise<string> {
@@ -1483,8 +1484,7 @@ class TryApp {
 
 async function main() {
   const app = new TryApp(process.argv);
-  // alternate screen buffer
-  process.stderr.write('\x1b[?1049h');
+  if (process.stderr.isTTY) process.stderr.write('\x1b[?1049h');
   await app.run();
 }
 
