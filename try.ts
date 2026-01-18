@@ -78,6 +78,33 @@ class Debug {
   }
 }
 
+// Random name generator for non-interactive mode
+class RandomName {
+  static ADJECTIVES = [
+    "swift", "bold", "calm", "dark", "eager", "fair", "glad", "happy",
+    "keen", "lazy", "merry", "neat", "odd", "proud", "quick", "rare",
+    "sage", "tall", "vast", "warm", "zesty", "bright", "clean", "deep",
+    "fresh", "grand", "light", "noble", "pure", "rich", "sharp", "smart",
+    "cool", "crisp", "dense", "dry", "dull", "epic", "fine", "flat",
+    "fuzzy", "giant", "grim", "hazy", "icy", "lean", "loud", "mild",
+  ];
+
+  static NOUNS = [
+    "fox", "owl", "bear", "wolf", "hawk", "lynx", "deer", "crow",
+    "toad", "moth", "wasp", "crab", "fish", "wren", "duck", "mole",
+    "hare", "newt", "pike", "slug", "vole", "orca", "seal", "yak",
+    "tree", "leaf", "rock", "wave", "wind", "rain", "snow", "star",
+    "moon", "sun", "lake", "cave", "hill", "peak", "vale", "reef",
+    "seed", "vine", "fern", "moss", "root", "bark", "twig", "bud",
+  ];
+
+  static generate(): string {
+    const adj = RandomName.ADJECTIVES[Math.floor(Math.random() * RandomName.ADJECTIVES.length)];
+    const noun = RandomName.NOUNS[Math.floor(Math.random() * RandomName.NOUNS.length)];
+    return `${adj}-${noun}`;
+  }
+}
+
 // Lightweight token-based printer for all UI output with double buffering
 class UI {
   static TOKEN_MAP: { [key: string]: string } = Object.freeze({
@@ -1099,7 +1126,7 @@ class InitScript {
     return `try() {
   script_path='${scriptPath}'
   case "$1" in
-    clone|worktree|init)
+    clone|worktree|init|new)
       cmd=$(/usr/bin/env node "$script_path"${pathArg} "$@" 2>/dev/tty)
       ;;
     *)
@@ -1120,7 +1147,7 @@ class InitScript {
     return `function try
   set -l script_path "${scriptPath}"
   switch $argv[1]
-    case clone worktree init
+    case clone worktree init new
       set -l cmd (/usr/bin/env node "$script_path"${pathArg} $argv 2>/dev/tty | string collect)
     case '*'
       set -l cmd (/usr/bin/env node "$script_path" cd${pathArg} $argv 2>/dev/tty | string collect)
@@ -1257,6 +1284,27 @@ class Commands {
       : InitScript.bashOrZsh(scriptPath, pathArg);
     process.stdout.write(script);
     exit(0);
+  }
+
+  new(args: string[]): Task[] {
+    const customName = args.join(" ").trim();
+    const base = customName.length > 0
+      ? customName.replace(/\s+/g, "-")
+      : RandomName.generate();
+    const datePrefix = new Date().toISOString().slice(0, 10);
+    const resolvedBase = PathUtils.resolveUniqueNameWithVersioning(
+      this.triesPath,
+      datePrefix,
+      base
+    );
+    const dirName = `${datePrefix}-${resolvedBase}`;
+    const fullPath = path.join(this.triesPath, dirName);
+    return [
+      { type: "target", path: fullPath },
+      { type: "mkdir" },
+      { type: "touch" },
+      { type: "cd" },
+    ];
   }
 
   worktree(args: string[]) {
@@ -1453,6 +1501,11 @@ class TryApp {
       }
       case "init": {
         commands.init(parsed.args);
+        break;
+      }
+      case "new": {
+        const tasks = commands.new(parsed.args);
+        TaskScriptEmitter.emitTasksScript(tasks);
         break;
       }
       case "worktree": {
